@@ -55,12 +55,12 @@ function ServerSelectModal({ clients, selected, onClose, onDone }) {
   );
 }
 
-function ClientPicker({ clients, selected, onChange }) {
+function ClientPicker({ clients, selected, onChange, onDismiss }) {
   const [open, setOpen] = React.useState(false);
   return (
     <>
       <div className="client-picker"><div className="server-picker-trigger"><button type="button" className="button primary server-select-trigger" onClick={() => setOpen(true)}>选择</button><span>{selected.length}选择</span></div></div>
-      {open && <ServerSelectModal clients={clients} selected={selected} onClose={() => setOpen(false)} onDone={(next) => { onChange(next); setOpen(false); }} />}
+      {open && <ServerSelectModal clients={clients} selected={selected} onClose={() => { setOpen(false); onDismiss?.(); }} onDone={(next) => { onChange(next); setOpen(false); }} />}
     </>
   );
 }
@@ -135,69 +135,80 @@ function CdnPicker({ onClose, onApply }) {
   );
 }
 
+function ImportConfirmModal({ rows, onClose, onConfirm, running }) {
+  const [filter, setFilter] = React.useState("all");
+  const pending = rows.filter((row) => row.status === "pending");
+  const failed = rows.filter((row) => row.status === "failed");
+  const visible = rows.filter((row) => filter === "all" || row.status === filter);
+  return (
+    <Modal title="确认导入" onClose={onClose} wide nested variant="import-confirm">
+      <div className="modal-body import-confirm-body">
+        <div className="preview confirm-preview">
+          <div className="preview-head"><strong>预览</strong><span>{pending.length} 条待导入，{failed.length} 条错误</span></div>
+          <div className="preview-table-wrap"><table><thead><tr><th>#</th><th>名称</th><th>目标</th><th>类型</th><th>间隔</th><th>状态</th><th>备注</th></tr></thead><tbody>{visible.map((row, index) => <tr key={`${row.row}-${index}`}><td>{row.row}</td><td>{row.name || "-"}</td><td>{row.target || "-"}</td><td>{row.type || "-"}</td><td>{row.interval || "-"}</td><td><span className={`status ${row.status}`}>{row.status === "pending" ? "待导入" : row.status === "success" ? "成功" : "错误"}</span></td><td>{row.message || ""}{row.near && <code>{row.near}</code>}</td></tr>)}</tbody></table></div>
+          <div className="filter-row">{[["all", "全部"], ["success", "成功"], ["failed", "错误"]].map(([value, label]) => <button key={value} className={`filter ${filter === value ? "active" : ""}`} onClick={() => setFilter(value)}>{label}</button>)}</div>
+        </div>
+        <div className="modal-actions"><button type="button" className="button secondary" disabled={running} onClick={onClose}>取消</button><button type="button" className="button primary" disabled={running || !pending.length} onClick={onConfirm}>{running ? "导入中..." : "确定导入"}</button></div>
+      </div>
+    </Modal>
+  );
+}
+
 function ImportModal({ clients, onClose, onImported }) {
   const [text, setText] = React.useState("");
   const [selectedClients, setSelectedClients] = React.useState([]);
   const [defaultOn, setDefaultOn] = React.useState(false);
-  const [results, setResults] = React.useState([]);
-  const [filter, setFilter] = React.useState("all");
   const [running, setRunning] = React.useState(false);
   const [notice, setNotice] = React.useState("");
   const [cdnOpen, setCdnOpen] = React.useState(false);
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
   const parsed = React.useMemo(() => parseImportText(text), [text]);
   const pending = parsed.filter((row) => row.status === "pending");
-  const failed = parsed.filter((row) => row.status === "failed");
-  const visible = (results.length ? results : parsed).filter((row) => filter === "all" || row.status === filter);
   const appendCdnRows = (nodes, defaults) => {
     const rows = nodes.map((node) => `${node.name},${node.target},${defaults.type},${defaults.interval}`).join("\n");
     setText((current) => current.trim() ? `${current.trim()}\n${rows}` : rows);
-    setResults([]);
     setNotice(`已加入 ${nodes.length} 个 CDN 节点（${defaults.type.toUpperCase()} / ${defaults.interval}s），可在文本框中继续调整。`);
     setCdnOpen(false);
   };
 
-  const importRows = async () => {
+  const openConfirmation = () => {
     if (!pending.length) return setNotice("没有可以导入的有效任务。");
     if (!defaultOn && !selectedClients.length) return setNotice("请至少选择一个服务器，或开启默认应用。");
-    setRunning(true);
     setNotice("");
-    const next = [...failed];
+    setConfirmOpen(true);
+  };
+
+  const importRows = async () => {
+    setRunning(true);
     let success = 0;
+    let failures = 0;
     for (const row of pending) {
       try {
         await request("/api/admin/ping/add", {
           method: "POST",
           body: JSON.stringify({ name: row.name, target: row.target, type: row.type, interval: row.interval, default_on: defaultOn, clients: selectedClients }),
         });
-        next.push({ ...row, status: "success" });
         success += 1;
       } catch (error) {
-        next.push({ ...row, status: "failed", message: error.message });
+        failures += 1;
       }
     }
-    setResults(next);
-    setFilter("all");
-    setNotice(`导入完成：成功 ${success} 条，失败 ${next.filter((row) => row.status === "failed").length} 条。`);
     setRunning(false);
-    if (success) onImported();
+    setConfirmOpen(false);
+    onClose();
+    if (success || failures) onImported({ success, failures });
   };
 
   return (
-    <Modal title="导入延迟任务" onClose={onClose} wide variant={parsed.length ? "import-preview" : "import-empty"}>
-      <div className={`modal-body import-modal-body ${parsed.length ? "has-preview" : "empty-import"}`}>
-        <textarea className="import-text" rows="9" value={text} onChange={(event) => { setText(event.target.value); setResults([]); setNotice(""); }} placeholder={'Google DNS,8.8.8.8,icmp,60\n[ { "name": "Cloudflare", "target": "1.1.1.1", "type": "icmp", "interval": 60 } ]\n\n每行格式：name, target, type, interval；也支持 JSON 对象或数组。分隔符可用逗号、短横线或竖线。'} />
-        {parsed.length > 0 && (
-          <div className="preview">
-            <div className="preview-head"><strong>预览</strong><span>{pending.length} 条待导入，{failed.length} 条错误</span></div>
-            <div className="preview-table-wrap"><table><thead><tr><th>#</th><th>名称</th><th>目标</th><th>类型</th><th>间隔</th><th>状态</th><th>备注</th></tr></thead><tbody>{visible.map((row, index) => <tr key={`${row.row}-${index}`}><td>{row.row}</td><td>{row.name || "-"}</td><td>{row.target || "-"}</td><td>{row.type || "-"}</td><td>{row.interval || "-"}</td><td><span className={`status ${row.status}`}>{row.status === "pending" ? "待导入" : row.status === "success" ? "成功" : "错误"}</span></td><td>{row.message || ""}{row.near && <code>{row.near}</code>}</td></tr>)}</tbody></table></div>
-            <div className="filter-row">{[["all", "全部"], ["success", "成功"], ["failed", "错误"]].map(([value, label]) => <button key={value} className={`filter ${filter === value ? "active" : ""}`} onClick={() => setFilter(value)}>{label}</button>)}</div>
-          </div>
-        )}
-        <div className="server-field"><label>服务器</label><ClientPicker clients={clients} selected={selectedClients} onChange={setSelectedClients} /><label className="server-default-row"><input type="checkbox" checked={defaultOn} onChange={(event) => setDefaultOn(event.target.checked)} /><span>默认开启</span></label><div className="server-helper">开启后，新加入的服务器会自动启用此监测；已存在的服务器不受影响。</div></div>
+    <Modal title="导入延迟任务" onClose={onClose} wide variant="import-form">
+      <div className="modal-body import-modal-body empty-import">
+        <textarea className="import-text" rows="9" value={text} onChange={(event) => { setText(event.target.value); setNotice(""); }} placeholder={'Google DNS,8.8.8.8,icmp,60\n[ { "name": "Cloudflare", "target": "1.1.1.1", "type": "icmp", "interval": 60 } ]\n\n每行格式：name, target, type, interval；也支持 JSON 对象或数组。分隔符可用逗号、短横线或竖线。'} />
+        <div className="server-field"><label>服务器</label><ClientPicker clients={clients} selected={selectedClients} onChange={setSelectedClients} onDismiss={onClose} /><label className="server-default-row"><input type="checkbox" checked={defaultOn} onChange={(event) => setDefaultOn(event.target.checked)} /><span>默认开启</span></label><div className="server-helper">开启后，新加入的服务器会自动启用此监测；已存在的服务器不受影响。</div></div>
         {notice && <div className={`notice ${notice.includes("完成") && !notice.includes("失败 0") ? "warning" : "info"}`}>{notice}</div>}
-        <div className="modal-actions modal-actions-split"><div className="modal-actions import-left-actions"><div className="file-open-wrap"><label className="button success file-button">导入文件<input type="file" accept=".json,.txt,.csv,application/json,text/plain,text/csv" onChange={(event) => event.target.files?.[0]?.text().then((value) => { setText(value); setResults([]); setNotice(""); })} /></label><span className="file-info"><button type="button" className="info-button" aria-label="支持的文件格式" title="支持的文件格式">i</button><span className="modal-tooltip" role="tooltip">支持 TXT / JSON / CSV 文件</span></span></div><div className="cdn-open-wrap"><button className="button secondary cdn-open-button" onClick={() => setCdnOpen(true)}>快捷导入运营商 CDN</button><span className="cdn-info"><button type="button" className="info-button" aria-label="数据来源" title="数据来源">i</button><span className="modal-tooltip" role="tooltip"><span>数据来源：</span><a href="https://lf3-ips.zstaticcdn.com/" target="_blank" rel="noreferrer">lf3-ips.zstaticcdn.com</a></span></span></div></div><div className="modal-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" disabled={running || !pending.length} onClick={importRows}>{running ? "导入中..." : "开始导入"}</button></div></div>
+        <div className="modal-actions modal-actions-split"><div className="modal-actions import-left-actions"><div className="file-open-wrap"><label className="button success file-button">导入文件<input type="file" accept=".json,.txt,.csv,application/json,text/plain,text/csv" onChange={(event) => event.target.files?.[0]?.text().then((value) => { setText(value); setNotice(""); })} /></label><span className="file-info"><button type="button" className="info-button" aria-label="支持的文件格式" title="支持的文件格式">i</button><span className="modal-tooltip" role="tooltip">支持 TXT / JSON / CSV 文件</span></span></div><div className="cdn-open-wrap"><button className="button secondary cdn-open-button" onClick={() => setCdnOpen(true)}>快捷导入运营商 CDN</button><span className="cdn-info"><button type="button" className="info-button" aria-label="数据来源" title="数据来源">i</button><span className="modal-tooltip" role="tooltip"><span>数据来源：</span><a href="https://lf3-ips.zstaticcdn.com/" target="_blank" rel="noreferrer">lf3-ips.zstaticcdn.com</a></span></span></div></div><div className="modal-actions"><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" disabled={running || !pending.length} onClick={openConfirmation}>开始导入</button></div></div>
       </div>
-      {cdnOpen && <CdnPicker onClose={() => setCdnOpen(false)} onApply={appendCdnRows} />}
+      {cdnOpen && <CdnPicker onClose={onClose} onApply={appendCdnRows} />}
+      {confirmOpen && <ImportConfirmModal rows={parsed} running={running} onClose={onClose} onConfirm={importRows} />}
     </Modal>
   );
 }
