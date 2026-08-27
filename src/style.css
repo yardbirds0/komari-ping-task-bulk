@@ -54,7 +54,7 @@ td strong { display: block; color: #101828; }
 .modal { display: flex; width: min(560px, 100%); max-height: min(800px, calc(100vh - 32px)); flex-direction: column; overflow: hidden; border: 1px solid #dfe5ee; border-radius: 11px; background: #fff; box-shadow: 0 24px 60px rgb(15 23 42 / 25%); }
 .modal-wide { width: min(920px, 100%); height: min(640px, calc(100vh - 32px)); max-height: none; }
 .modal-import-empty { height: min(550px, calc(100vh - 32px)); }
-.modal-import-preview { height: calc(100vh - 32px); max-height: calc(100vh - 32px); }
+.modal-import-preview { height: min(900px, calc(100vh - 48px)); max-height: calc(100vh - 48px); }
 .modal-compact { width: min(400px, 100%); height: auto; max-height: min(560px, calc(100vh - 32px)); }
 .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 21px 24px 17px; border-bottom: 1px solid #edf0f5; }
 .modal-header h2 { color: #101828; font-size: 19px; }
@@ -162,7 +162,7 @@ td strong { display: block; color: #101828; }
 .server-select-footer .button.secondary { color: #5b57d8; border-color: transparent; background: #f0f1ff; }
 .server-select-footer .button.primary { background: #5b57d8; }
 .server-select-footer .button.primary:hover { background: #4f4bc5; }
-@media (max-width: 680px) { .app-shell { padding: 22px 16px 50px; } .page-header { align-items: flex-start; flex-direction: column; } .header-actions { width: 100%; } .header-actions .button { flex: 1; } .toolbar { align-items: flex-start; flex-direction: column; } .toolbar-actions { width: 100%; } .toolbar-actions .button { flex: 1; } .modal-backdrop { padding: 10px; } .modal-wide { height: calc(100vh - 20px); } .modal-import-empty { height: min(550px, calc(100vh - 20px)); } .modal-import-preview { height: calc(100vh - 20px); max-height: calc(100vh - 20px); } .modal-header, .modal-body { padding-left: 16px; padding-right: 16px; } .modal-tooltip { width: min(300px, calc(100vw - 32px)); } .cdn-list { grid-template-columns: 1fr; } .cdn-defaults { align-items: flex-start; flex-direction: column; gap: 7px; } }
+@media (max-width: 680px) { .app-shell { padding: 22px 16px 50px; } .page-header { align-items: flex-start; flex-direction: column; } .header-actions { width: 100%; } .header-actions .button { flex: 1; } .toolbar { align-items: flex-start; flex-direction: column; } .toolbar-actions { width: 100%; } .toolbar-actions .button { flex: 1; } .modal-backdrop { padding: 10px; } .modal-wide { height: calc(100vh - 20px); } .modal-import-empty { height: min(550px, calc(100vh - 20px)); } .modal-import-preview { height: min(900px, calc(100vh - 20px)); max-height: calc(100vh - 20px); } .modal-header, .modal-body { padding-left: 16px; padding-right: 16px; } .modal-tooltip { width: min(300px, calc(100vw - 32px)); } .cdn-list { grid-template-columns: 1fr; } .cdn-defaults { align-items: flex-start; flex-direction: column; gap: 7px; } }
 :root.dark { color: #e5e7eb; background: #111827; }
 :root.dark h1, :root.dark h2, :root.dark td strong { color: #f9fafb; }
 :root.dark .page-header, :root.dark th, :root.dark td, :root.dark .preview, :root.dark .modal-header { border-color: #273449; }
