@@ -1,0 +1,15 @@
+{
+  "name": "延迟任务批量管理",
+  "short": "ping-task-bulk",
+  "description": "批量删除、批量编辑和导入延迟监测任务。",
+  "author": "yardbirds0",
+  "version": "1.0.0",
+  "komari": ">=1.4.3",
+  "entry": "script.js",
+  "pages": [
+    {
+      "file": "dist/index.html",
+      "title": "延迟任务批量管理"
+    }
+  ]
+}
