@@ -3,7 +3,7 @@
   "short": "ping-task-bulk",
   "description": "批量删除、批量编辑和导入延迟监测任务。",
   "author": "yardbirds0",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "komari": ">=1.4.3",
   "entry": "script.js",
   "pages": [

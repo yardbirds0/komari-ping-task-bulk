@@ -23,6 +23,7 @@ const idOf = (client) => client?.uuid || client?.UUID || client?.id || "";
 const clientName = (client) => client?.name || client?.hostname || client?.remark || idOf(client);
 
 const ESTIMATED_BYTES_PER_PING = 190;
+const IMPORT_CONCURRENCY = 4;
 
 const formatBytes = (bytes) => {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
@@ -288,20 +289,26 @@ function ImportModal({ clients, onClose, onImported }) {
     setRunning(true);
     let success = 0;
     let failures = rowsToImport.filter((row) => row.status === "failed").length;
-    for (const [index, row] of rowsToImport.entries()) {
-      if (row.status !== "pending") continue;
-      try {
-        await request("/api/admin/ping/add", {
-          method: "POST",
-          body: JSON.stringify({ name: row.name, target: row.target, type: row.type, interval: row.interval, default_on: defaultOn, clients: selectedClients }),
-        });
-        success += 1;
-        setResults((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, status: "success", message: "", near: "" } : item));
-      } catch (error) {
-        failures += 1;
-        setResults((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, status: "failed", message: error?.message || t("error") } : item));
+    const pendingIndexes = rowsToImport.flatMap((row, index) => row.status === "pending" ? [index] : []);
+    let nextIndex = 0;
+    const worker = async () => {
+      while (nextIndex < pendingIndexes.length) {
+        const index = pendingIndexes[nextIndex++];
+        const row = rowsToImport[index];
+        try {
+          await request("/api/admin/ping/add", {
+            method: "POST",
+            body: JSON.stringify({ name: row.name, target: row.target, type: row.type, interval: row.interval, default_on: defaultOn, clients: selectedClients }),
+          });
+          success += 1;
+          setResults((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, status: "success", message: "", near: "" } : item));
+        } catch (error) {
+          failures += 1;
+          setResults((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, status: "failed", message: error?.message || t("error") } : item));
+        }
       }
-    }
+    };
+    await Promise.all(Array.from({ length: Math.min(IMPORT_CONCURRENCY, pendingIndexes.length) }, worker));
     setRunning(false);
     if (success || failures) onImported({ success, failures });
   };
